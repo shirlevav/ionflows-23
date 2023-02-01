@@ -349,7 +349,7 @@ class SummerShot(Shot):
                     rnum = rnum + 2
                     y = all_y[rnum]
                     x = self.y_m[1:len(self.y_m)-1:steps]
-                    ax[i,j].plot((x),(y),marker = '.', markersize = 10, label=f'{ion}', alpha=0.85)
+                    ax[i,j].plot((x),(y), label=f'{ion}', alpha=0.85)
                     #ax[i,j].set_title(f'{reactiondict[rnum]}')
                     ax[i,j].set_xscale('log')
                     ax[i,j].text(0.15, 0.5, f'{reactiondict[rnum]}',
@@ -358,9 +358,9 @@ class SummerShot(Shot):
      transform = ax[i,j].transAxes, color = 'black', backgroundcolor='white', fontsize='small')
                     #ax[i,j].legend(loc ="lower left");
         #fig.suptitle(f'Graphs of {ion} flows vs column depth')
-        ax[0,0].legend(loc='lower left', bbox_to_anchor= (0.0, 1.05),
-            borderaxespad=0, frameon=False, fontsize = 'small', ncol=len(ionlist))
-        fig.supxlabel('Column depth, (g/cm^2)')
+        ax[0,0].legend(loc='upper left',
+            borderaxespad=0, frameon=False, fontsize = 'x-small', ncol=1)
+        fig.supxlabel(f'Column depth, $(g/cm^2)$')
         fig.supylabel('Flow (mol/g/s)')
         fig.show()
         #savestatus = input("save?(y/n): ")
