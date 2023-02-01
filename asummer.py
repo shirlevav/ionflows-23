@@ -411,4 +411,82 @@ class SummerShot(Shot):
         print(f'Maximum negative flow: {maxnegflow} mol/g/s, {maxnegion}')
         print(f'Maximum positive flow: {maxposflow} mol/g/s, {maxposion}')
 
+    def plot_all_flows(self, zone, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
+            ax, fig = fig_setup(self, ax, fig, name=name)
+            ax.set_aspect('equal')
 
+            if y is not None:
+                assert j is None
+                j = len(self.y) - 1 - np.searchsorted(self.y[::-1], y)
+                if j < 1:
+                    j = 1
+
+            if j is None:
+                j = 1
+            if j == 0:
+                abu = self.abub_acc
+            elif isinstance(self.abub, AbuSet):
+                assert j == 1, f'invalid zone number {j}'
+                abu = self.abub
+            else:
+                abu = self.abub.zone_abu(j)
+
+            if 'lim' in kwargs:
+                kwargs.setdefault('log_abu_min', np.log10(kwargs.pop('lim')))
+
+            if not 'cm' in kwargs:
+                kwargs['cm'] = color.ColorBlendBspline(
+                    ('white',)+tuple(
+                        [color.ColorScale(
+                            color.colormap('plasma_r'),
+                            lambda x: (x-0.2)/0.8)]*2)
+                    + ('black',), frac=(0,.2,1),k=1)
+            self.nuc =  NucPlot(abu, ax=ax, fig=fig, **kwargs)
+
+
+            y = 2 / (3 * self.xkn[self.jm+1])
+            if j > 0:
+                y += 0.5 * (self.y[j] + self.y[j-1])
+
+            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(self.y_m[zone]):7.3f}', ha='left', va='top')
+            for i in range(6):
+                reactionnumber = 2*i
+                nchange, pchange = reactioneffect(reactionnumber)
+
+                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, zone, reactionnumber)
+                widths = scale_list(rflow,0.5,1.5)
+                opac = scale_list(rflow,0.15,0.999)
+                maxposflow = np.max(rflowpos)
+                maxposion = ionpos[np.argmax(rflowpos)]
+                maxnegflow = np.min(rflowneg)
+                maxnegion = ionneg[np.argmin(rflowneg)]
+                ax = self.nuc.ax
+                ax.text(0.10, 0.95, f'{reactiondict[reactionnumber]}',
+     horizontalalignment='center',
+     verticalalignment='center',
+     transform = ax.transAxes, backgroundcolor='white')
+                num=-1
+                for ion in ionlist:
+                    num = num+1
+                    p = I(ion).Z
+                    n = I(ion).A-p
+                    width = widths[num]
+                    opacity = opac[num]
+                    if ion in ionpos:
+                        ax.annotate("", xy=(n+nchange, p+pchange), xycoords='data', xytext=(n, p), textcoords='data', arrowprops=dict(arrowstyle="->", connectionstyle="arc3",lw=width, alpha=opacity, color='green'),)
+                    elif ion in ionneg:
+                        ax.annotate("", xy=(n, p), xycoords='data', xytext=(n+nchange, p+pchange), textcoords='data', arrowprops=dict(arrowstyle="->", connectionstyle="arc3",lw=width, alpha=opacity, color='red'),) 
+                if self.tn[0] == self.tn[-1]:
+                    ax.plot([None], color='#ffffff00', label=f'${temperature2human(self.tn[0], latex=True)}$')
+                    ax.plot([None], color='#ffffff00', label=f'${density2human(self.dn[0], latex=True)}$')
+                    leg = ax.legend(loc='lower right', handlelength=0)
+                    leg.set_draggable(True)
+            red_patch = mpatches.Patch(color='red', label='Negative flows')
+            green_patch = mpatches.Patch(color='green', label='Positive flows')
+            ax.legend(handles=[red_patch, green_patch],loc='lower right',
+            borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
+            fig.show()    
+            #savestatus = input("save?(y/n): ")
+            #if savestatus=='y':
+                #title=input('title?: ')
+                #fig.savefig(f'Results/ionflows/{title}.pdf')
