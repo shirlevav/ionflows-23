@@ -29,9 +29,18 @@ import matplotlib.patches as mpatches
 from bsummer import onezonerflow, makearray, scale_list, rflowposneg
 
 
-reactiondict = {0: 'ng net', 1: 'ng backwards', 2: 'pn net', 3: 'pn backwards', 4: 'pg net', 5: 'pg backwards', 6: 'ap net', 7: 'ap backwards', 8: 'an net', 9: 'an backwards', 10: 'ag net', 11: 'ag backwards', 12: 'weak net', 13: 'weak backwards', 14: 'b net', 'ng net': 0, 'ng backwards': 1, 'pn net': 2, 'pn backwards': 3, 'pg net': 4, 'pg backwards': 5, 'ap net': 6, 'ap backwards': 7, 'an net': 8, 'an backwards': 9, 'ag net': 10, 'ag backwards': 11, 'weak net': 12, 'weak backwards': 13, 'b net': 14}
+reactiondict = {0: '(n,$\gamma$) net', 1: '(n,$\gamma$) backwards', 2: '(p,n) net', 3: '(p,n) backwards', 4: '(p,$\gamma$) net', 5: '(p,$\gamma$) backwards', 6: '($\\alpha$,p) net', 7: '($\\alpha$,p) backwards', 8: '($\\alpha$,n) net', 9: '($\\alpha$,n) backwards', 10: '($\\alpha$,$\gamma$) net', 11: 'ag backwards', 12: 'weak net', 13: 'weak backwards', 14: 'b net', 'ng net': 0, 'ng backwards': 1, 'pn net': 2, 'pn backwards': 3, 'pg net': 4, 'pg backwards': 5, 'ap net': 6, 'ap backwards': 7, 'an net': 8, 'an backwards': 9, 'ag net': 10, 'ag backwards': 11, 'weak net': 12, 'weak backwards': 13, 'b net': 14}
 
 save_results_to = 'Results/'
+
+def get_super(x): #only for numbers
+    x = float(x)
+    x = int(x)
+    x = str(x)
+    normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()"
+    super_s = "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻᵃᵇᶜᵈᵉᶠᵍʰᶦʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+    res = x.maketrans(''.join(normal), ''.join(super_s))
+    return x.translate(res)
 
 def makelist(name, zone):
     useful = []
@@ -310,7 +319,7 @@ class SummerShot(Shot):
      #horizontalalignment='center',
      #verticalalignment='center',
      #transform = ax.transAxes, color = 'black', backgroundcolor='white', fontsize='small')
-            ax.text(0.10, 0.95, f'{reaction}',
+            ax.text(0.10, 0.95, f'{reactiondict[reactionnumber]}',
      horizontalalignment='center',
      verticalalignment='center',
      transform = ax.transAxes, backgroundcolor='white')
@@ -332,8 +341,8 @@ class SummerShot(Shot):
                 leg.set_draggable(True)
             red_patch = mpatches.Patch(color='red', label='Negative flows')
             green_patch = mpatches.Patch(color='green', label='Positive flows')
-            ax.legend(handles=[red_patch, green_patch],loc='lower left', bbox_to_anchor= (0.0, 1.05),
-            borderaxespad=0, frameon=False, fontsize = 'small', ncol=2) 
+            ax.legend(handles=[red_patch, green_patch],loc='lower right',
+            borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
             fig.show()    
             #savestatus = input("save?(y/n): ")
             #if savestatus=='y':
@@ -341,27 +350,51 @@ class SummerShot(Shot):
                 #fig.savefig(f'Results/ionflows/{title}.pdf')
     def allplotsionlist(self, ionlist, steps):
         fig,ax=plt.subplots(2,3, figsize=(9,6))
+        powerlist = np.zeros(6)
+        y_list = []
         for ion in ionlist:
+            templist = []
             all_y = allreactions(self, ion, steps)
+            rnum = -2
+            for count in range(6):
+                rnum = rnum + 2
+                y = all_y[rnum]
+                templist.append(y)
+                absolute_val = np.abs(y).max()
+                if absolute_val != 0:
+                    power = np.log10(absolute_val)
+                    if abs(power) > powerlist[count]:
+                        powerlist[count] = (math.trunc(power))
+            y_list.append(templist)   
+        index = -1
+        print(powerlist[0],powerlist)
+        for ion in ionlist:
+            index = index + 1
+            reactioncount = -1
             rnum = -2
             for i in range(2):
                 for j in range(3):
+                    reactioncount = reactioncount + 1
                     rnum = rnum + 2
-                    y = all_y[rnum]
+                    y = y_list[index][reactioncount]
+                    y = np.array(y)
+                    y = y/(10**powerlist[reactioncount])
                     x = self.y_m[1:len(self.y_m)-1:steps]
                     ax[i,j].plot((x),(y), label=f'{ion}', alpha=0.85)
                     #ax[i,j].set_title(f'{reactiondict[rnum]}')
                     ax[i,j].set_xscale('log')
-                    ax[i,j].text(0.15, 0.5, f'{reactiondict[rnum]}',
+                    ax[i,j].text(0.20, 0.5, f'{reactiondict[rnum]}',
      horizontalalignment='center',
      verticalalignment='center',
      transform = ax[i,j].transAxes, color = 'black', backgroundcolor='white', fontsize='small')
+                    ax[i,j].set_ylabel(f'Flow  ($10{get_super(str(powerlist[reactioncount]))}$ $mol$ $g{get_super(str(-1))}$ $s{get_super(str(-1))}$)', fontsize='small')
                     #ax[i,j].legend(loc ="lower left");
         #fig.suptitle(f'Graphs of {ion} flows vs column depth')
         ax[0,0].legend(loc='upper left',
             borderaxespad=0, frameon=False, fontsize = 'x-small', ncol=1)
         fig.supxlabel(f'Column depth, $(g/cm^2)$')
-        fig.supylabel('Flow (mol/g/s)')
+        #fig.supylabel(f'Flow $(mol/g/s)$')
+        fig.tight_layout()
         fig.show()
         #savestatus = input("save?(y/n): ")
         #if savestatus=='y':
@@ -377,4 +410,5 @@ class SummerShot(Shot):
         maxnegion = ionneg[np.argmin(rflowneg)]
         print(f'Maximum negative flow: {maxnegflow} mol/g/s, {maxnegion}')
         print(f'Maximum positive flow: {maxposflow} mol/g/s, {maxposion}')
+
 
