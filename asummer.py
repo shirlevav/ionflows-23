@@ -364,10 +364,10 @@ class SummerShot(Shot):
                 if absolute_val != 0:
                     power = np.log10(absolute_val)
                     if abs(power) > powerlist[count]:
-                        powerlist[count] = (math.trunc(power))
+                        powerlist[count] = (np.floor(power))
             y_list.append(templist)   
         index = -1
-        print(powerlist[0],powerlist)
+        #print(powerlist[0],powerlist)
         for ion in ionlist:
             index = index + 1
             reactioncount = -1
@@ -380,19 +380,22 @@ class SummerShot(Shot):
                     y = np.array(y)
                     y = y/(10**powerlist[reactioncount])
                     x = self.y_m[1:len(self.y_m)-1:steps]
-                    ax[i,j].plot((x),(y), label=f'{ion}', alpha=0.85)
+                    ax[i,j].plot(np.log10(x),(y), label=f'{ion}', alpha=0.85)
                     #ax[i,j].set_title(f'{reactiondict[rnum]}')
-                    ax[i,j].set_xscale('log')
+                    #ax[i,j].set_xscale('log')
                     ax[i,j].text(0.20, 0.5, f'{reactiondict[rnum]}',
      horizontalalignment='center',
      verticalalignment='center',
      transform = ax[i,j].transAxes, color = 'black', backgroundcolor='white', fontsize='small')
-                    ax[i,j].set_ylabel(f'Flow  ($10{get_super(str(powerlist[reactioncount]))}$ $mol$ $g{get_super(str(-1))}$ $s{get_super(str(-1))}$)', fontsize='small')
+                    ax[i,j].set_ylabel(f'Flow  ($10{get_super(str(powerlist[reactioncount]))}$ mol g{get_super(str(-1))} s{get_super(str(-1))})', fontsize='small')
                     #ax[i,j].legend(loc ="lower left");
         #fig.suptitle(f'Graphs of {ion} flows vs column depth')
         ax[0,0].legend(loc='upper left',
             borderaxespad=0, frameon=False, fontsize = 'x-small', ncol=1)
-        fig.supxlabel(f'Column depth, $(g/cm^2)$')
+        ax[1,0].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,1].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,2].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        #fig.supxlabel(f'Column depth, $(g/cm^2)$')
         #fig.supylabel(f'Flow $(mol/g/s)$')
         fig.tight_layout()
         fig.show()
@@ -461,10 +464,6 @@ class SummerShot(Shot):
                 maxnegflow = np.min(rflowneg)
                 maxnegion = ionneg[np.argmin(rflowneg)]
                 ax = self.nuc.ax
-                ax.text(0.10, 0.95, f'{reactiondict[reactionnumber]}',
-     horizontalalignment='center',
-     verticalalignment='center',
-     transform = ax.transAxes, backgroundcolor='white')
                 num=-1
                 for ion in ionlist:
                     num = num+1
