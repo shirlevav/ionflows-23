@@ -26,7 +26,7 @@ from isoplot import IsoPlot, IsoPlotMult
 from nucplot import NucPlot
 import matplotlib.patches as mpatches
 
-from bsummer import onezonerflow, makearray, scale_list, rflowposneg
+from movie import make_movie, MPLCanvas
 
 
 reactiondict = {0: '(n,$\gamma$) net', 1: '(n,$\gamma$) backwards', 2: '(p,n) net', 3: '(p,n) backwards', 4: '(p,$\gamma$) net', 5: '(p,$\gamma$) backwards', 6: '($\\alpha$,p) net', 7: '($\\alpha$,p) backwards', 8: '($\\alpha$,n) net', 9: '($\\alpha$,n) backwards', 10: '($\\alpha$,$\gamma$) net', 11: 'ag backwards', 12: 'weak net', 13: 'weak backwards', 14: 'b net', 'ng net': 0, 'ng backwards': 1, 'pn net': 2, 'pn backwards': 3, 'pg net': 4, 'pg backwards': 5, 'ap net': 6, 'ap backwards': 7, 'an net': 8, 'an backwards': 9, 'ag net': 10, 'ag backwards': 11, 'weak net': 12, 'weak backwards': 13, 'b net': 14}
@@ -158,6 +158,65 @@ def reactioneffect(reactionnumber):
         return 1, 2
     if reactionnumber == 10:
         return 2, 2 
+
+def onezonerflow(self, zone, reactionnumber):
+    fulllist, ionlist = makearray(self, zone)
+    rflow = []
+    for i in range(len(fulllist)):
+        rflow.append(fulllist[i][reactionnumber])
+    return rflow, ionlist
+    
+def rflowposneg(self, zone, reactionnumber):
+    fulllist, ionlist = makearray(self, zone)
+    rflowpos = []
+    ionpos = []
+    rflowneg = []
+    ionneg = []
+    rflow = []
+    for i in range(len(fulllist)):
+        flowvalue = fulllist[i][reactionnumber]
+        rflow.append(flowvalue)
+        if flowvalue > 0:
+            rflowpos.append(flowvalue)
+            ionpos.append(ionlist[i])
+        else:
+            rflowneg.append(flowvalue)
+            ionneg.append(ionlist[i])
+    if len(rflowpos)==0:
+        rflowpos = [0]
+        ionpos = ['no pos ions']
+    if len(rflowneg)==0:
+        rflowneg = [0]
+        ionneg = ['no neg ions']
+    return rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow
+
+def scale_number(unscaled, to_min, to_max, from_min, from_max):
+    if unscaled/from_max < 0.00001:
+        return 0
+    else:
+        return (to_max-to_min)*(unscaled-from_min)/(from_max-from_min)+to_min
+    
+def scale_list(l, to_min, to_max):
+    return [scale_number(i, to_min, to_max, np.abs(l).min(), np.abs(l).max()) for i in np.abs(l)]
+    
+def scale_list_of_lists(l, to_min, to_max):
+    all_max = []
+    all_min = []
+    returnlist = []
+    for section in l:
+        section = np.abs(section)
+        all_max.append(np.abs(section).max())
+        all_min.append(np.abs(section).min())
+    final_max = np.max(all_max)
+    final_min = np.min(all_min)
+    for section in l:
+        section = np.abs(section)
+        tempscale = []
+        for element in section:
+            tempscale.append(scale_number(element, to_min, to_max, final_min, final_max))
+        returnlist.append(tempscale)
+    return returnlist
+    
 
 class SummerShot(Shot):
     def makearray(self, zone):
@@ -364,7 +423,7 @@ class SummerShot(Shot):
                 if absolute_val != 0:
                     power = np.log10(absolute_val)
                     if abs(power) > powerlist[count]:
-                        powerlist[count] = (np.floor(power))
+                        powerlist[count] = (np.round(power,0))
             y_list.append(templist)   
         index = -1
         #print(powerlist[0],powerlist)
@@ -414,7 +473,8 @@ class SummerShot(Shot):
         print(f'Maximum negative flow: {maxnegflow} mol/g/s, {maxnegion}')
         print(f'Maximum positive flow: {maxposflow} mol/g/s, {maxposion}')
 
-    def plot_all_flows(self, zone, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
+
+    def plot_all_flows(self, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
             ax, fig = fig_setup(self, ax, fig, name=name)
             ax.set_aspect('equal')
 
@@ -451,14 +511,20 @@ class SummerShot(Shot):
             if j > 0:
                 y += 0.5 * (self.y[j] + self.y[j-1])
 
-            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(self.y_m[zone]):7.3f}', ha='left', va='top')
+            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(y+1.e-99):7.3f}', ha='left', va='top')
+            all_rflows = []
+            for i in range(6):
+                reactionnumber = 2*i
+                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
+                all_rflows.append(rflow)
+            widths = scale_list_of_lists(all_rflows,0.5,1.5)
+            opac = scale_list_of_lists(all_rflows,0.15,0.999)
             for i in range(6):
                 reactionnumber = 2*i
                 nchange, pchange = reactioneffect(reactionnumber)
 
-                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, zone, reactionnumber)
-                widths = scale_list(rflow,0.5,1.5)
-                opac = scale_list(rflow,0.15,0.999)
+                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
+                
                 maxposflow = np.max(rflowpos)
                 maxposion = ionpos[np.argmax(rflowpos)]
                 maxnegflow = np.min(rflowneg)
@@ -469,8 +535,8 @@ class SummerShot(Shot):
                     num = num+1
                     p = I(ion).Z
                     n = I(ion).A-p
-                    width = widths[num]
-                    opacity = opac[num]
+                    width = widths[i][num]
+                    opacity = opac[i][num]
                     if ion in ionpos:
                         ax.annotate("", xy=(n+nchange, p+pchange), xycoords='data', xytext=(n, p), textcoords='data', arrowprops=dict(arrowstyle="->", connectionstyle="arc3",lw=width, alpha=opacity, color='green'),)
                     elif ion in ionneg:
@@ -485,7 +551,24 @@ class SummerShot(Shot):
             ax.legend(handles=[red_patch, green_patch],loc='lower right',
             borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
             fig.show()    
-            #savestatus = input("save?(y/n): ")
-            #if savestatus=='y':
-                #title=input('title?: ')
-                #fig.savefig(f'Results/ionflows/{title}.pdf')
+    def movie_flows(
+            self, increment,
+            filename = 'flows.webm',
+            mp = True,
+            values = None,
+            size = (640, 480),
+            framerate = 30,
+            **kwargs):
+        if values is None:
+            values = range(self.jm, 1, -1*increment)
+        make_movie(
+            mp = mp,
+            filename = filename,
+            framerate = framerate,
+            values = values,
+            data = 'j',
+            generator=self.plot_all_flows,
+            gkwargs=kwargs,
+            canvas = MPLCanvas,
+            ckwargs = dict(size=size, canvas='agg'),
+            )
