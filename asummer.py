@@ -315,7 +315,7 @@ class SummerShot(Shot):
         
                    
                 
-    def plot_one_flow(self, zone, reaction, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
+    def plot_one_flow(self, reaction, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
             #reaction = input('Reaction name:')
             reactionnumber = reactiondict[str(reaction)]
             nchange, pchange = reactioneffect(reactionnumber)
@@ -355,9 +355,9 @@ class SummerShot(Shot):
             if j > 0:
                 y += 0.5 * (self.y[j] + self.y[j-1])
 
-            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(self.y_m[zone]):7.3f}', ha='left', va='top')
+            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(y+1.e-99):7.3f}', ha='left', va='top')
 
-            rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, zone, reactionnumber)
+            rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
             widths = scale_list(rflow,0.5,1.5)
             opac = scale_list(rflow,0.15,0.999)
             maxposflow = np.max(rflowpos)
@@ -403,10 +403,10 @@ class SummerShot(Shot):
             ax.legend(handles=[red_patch, green_patch],loc='lower right',
             borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
             fig.show()    
-            #savestatus = input("save?(y/n): ")
-            #if savestatus=='y':
-                #title=input('title?: ')
-                #fig.savefig(f'Results/ionflows/{title}.pdf')
+            savestatus = input("save?(y/n): ")
+            if savestatus=='y':
+                title=input('title?: ')
+                fig.savefig(f'Results/ionflows/{title}.pdf')
     def allplotsionlist(self, ionlist, steps):
         fig,ax=plt.subplots(2,3, figsize=(9,6))
         powerlist = np.zeros(6)
@@ -419,11 +419,16 @@ class SummerShot(Shot):
                 rnum = rnum + 2
                 y = all_y[rnum]
                 templist.append(y)
-                absolute_val = np.abs(y).max()
-                if absolute_val != 0:
-                    power = np.log10(absolute_val)
-                    if abs(power) > powerlist[count]:
-                        powerlist[count] = (np.round(power,0))
+                y = [x for x in y if x != 0] 
+                if len(y)>0:
+                    absolute_val = np.abs(y).max()
+                    if absolute_val != 0:
+                        power = np.log10(absolute_val)
+                        if powerlist[count] == 0:
+                            powerlist[count] = (np.round(power,0))
+                        else:
+                            if abs(power) < abs(powerlist[count]):
+                                powerlist[count] = (np.round(power,0))
             y_list.append(templist)   
         index = -1
         #print(powerlist[0],powerlist)
@@ -458,10 +463,10 @@ class SummerShot(Shot):
         #fig.supylabel(f'Flow $(mol/g/s)$')
         fig.tight_layout()
         fig.show()
-        #savestatus = input("save?(y/n): ")
-        #if savestatus=='y':
-            #title=input('title?: ')
-            #fig.savefig(f'Results/all_reactions/{title}.pdf')
+        savestatus = input("save?(y/n): ")
+        if savestatus=='y':
+            title=input('title?: ')
+            fig.savefig(f'Results/all_reactions/{title}.pdf')
         #fig.show()
     def printmaxvals(self, zone, reaction):
         reactionnumber = reactiondict[str(reaction)]
@@ -550,13 +555,95 @@ class SummerShot(Shot):
             green_patch = mpatches.Patch(color='green', label='Positive flows')
             ax.legend(handles=[red_patch, green_patch],loc='lower right',
             borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
-            fig.show()    
+            fig.show()
+            savestatus = input("save?(y/n): ")
+            if savestatus=='y':
+                title=input('title?: ')
+                fig.savefig(f'Results/all_reactions/{title}.pdf')
+        #fig.show() 
+    def plot_all_flows_movie(self, j=None, y=None, ax=None, fig=None, name=None, loc='best', **kwargs):
+            ax, fig = fig_setup(self, ax, fig, name=name)
+            ax.set_aspect('equal')
+
+            if y is not None:
+                assert j is None
+                j = len(self.y) - 1 - np.searchsorted(self.y[::-1], y)
+                if j < 1:
+                    j = 1
+
+            if j is None:
+                j = 1
+            if j == 0:
+                abu = self.abub_acc
+            elif isinstance(self.abub, AbuSet):
+                assert j == 1, f'invalid zone number {j}'
+                abu = self.abub
+            else:
+                abu = self.abub.zone_abu(j)
+
+            if 'lim' in kwargs:
+                kwargs.setdefault('log_abu_min', np.log10(kwargs.pop('lim')))
+
+            if not 'cm' in kwargs:
+                kwargs['cm'] = color.ColorBlendBspline(
+                    ('white',)+tuple(
+                        [color.ColorScale(
+                            color.colormap('plasma_r'),
+                            lambda x: (x-0.2)/0.8)]*2)
+                    + ('black',), frac=(0,.2,1),k=1)
+            self.nuc =  NucPlot(abu, ax=ax, fig=fig, **kwargs)
+
+
+            y = 2 / (3 * self.xkn[self.jm+1])
+            if j > 0:
+                y += 0.5 * (self.y[j] + self.y[j-1])
+
+            fig.text(0.01, 0.99, fr'log $y$ = {np.log10(y+1.e-99):7.3f}', ha='left', va='top')
+            all_rflows = []
+            for i in range(6):
+                reactionnumber = 2*i
+                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
+                all_rflows.append(rflow)
+            widths = scale_list_of_lists(all_rflows,0.5,2)
+            opac = scale_list_of_lists(all_rflows,0.15,0.999)
+            for i in range(6):
+                reactionnumber = 2*i
+                nchange, pchange = reactioneffect(reactionnumber)
+
+                rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
+                
+                maxposflow = np.max(rflowpos)
+                maxposion = ionpos[np.argmax(rflowpos)]
+                maxnegflow = np.min(rflowneg)
+                maxnegion = ionneg[np.argmin(rflowneg)]
+                ax = self.nuc.ax
+                num=-1
+                for ion in ionlist:
+                    num = num+1
+                    p = I(ion).Z
+                    n = I(ion).A-p
+                    width = widths[i][num]
+                    opacity = opac[i][num]
+                    if ion in ionpos:
+                        ax.annotate("", xy=(n+nchange, p+pchange), xycoords='data', xytext=(n, p), textcoords='data', arrowprops=dict(arrowstyle="->", connectionstyle="arc3",lw=width, alpha=opacity, color='green'),)
+                    elif ion in ionneg:
+                        ax.annotate("", xy=(n, p), xycoords='data', xytext=(n+nchange, p+pchange), textcoords='data', arrowprops=dict(arrowstyle="->", connectionstyle="arc3",lw=width, alpha=opacity, color='red'),) 
+                if self.tn[0] == self.tn[-1]:
+                    ax.plot([None], color='#ffffff00', label=f'${temperature2human(self.tn[0], latex=True)}$')
+                    ax.plot([None], color='#ffffff00', label=f'${density2human(self.dn[0], latex=True)}$')
+                    leg = ax.legend(loc='lower right', handlelength=0)
+                    leg.set_draggable(True)
+            red_patch = mpatches.Patch(color='red', label='Negative flows')
+            green_patch = mpatches.Patch(color='green', label='Positive flows')
+            ax.legend(handles=[red_patch, green_patch],loc='lower right',
+            borderaxespad=0, frameon=True, fontsize = 'small', ncol=2, framealpha =1, edgecolor='white', borderpad=0.2, bbox_to_anchor=(0.97, 0.03)) 
+            fig.show()   
     def movie_flows(
             self, increment,
             filename = 'flows.webm',
             mp = True,
             values = None,
-            size = (640, 480),
+            size = (1280, 960),
             framerate = 30,
             **kwargs):
         if values is None:
@@ -567,8 +654,73 @@ class SummerShot(Shot):
             framerate = framerate,
             values = values,
             data = 'j',
-            generator=self.plot_all_flows,
+            generator=self.plot_all_flows_movie,
             gkwargs=kwargs,
             canvas = MPLCanvas,
             ckwargs = dict(size=size, canvas='agg'),
             )
+    def fluidgraph(self, ionlist, steps):
+        fig,ax=plt.subplots(2,3, figsize=(9,6))
+        powerlist = np.zeros(6)
+        mdotval = self.mdot
+        xlist = self.y_m[1:len(self.y_m)-1:steps]
+        y_list = []
+        for ion in ionlist:
+            templist = []
+            all_y = allreactions(self, ion, steps)
+            rnum = -2
+            for count in range(6):
+                rnum = rnum + 2
+                y = all_y[rnum]
+                for i in range(len(y)):
+                    y[i] = y[i]*((xlist[i])/mdotval)
+                templist.append(y)
+                y = [x for x in y if x != 0] 
+                if len(y)>0:
+                    absolute_val = np.abs(y).max()
+                    if absolute_val != 0:
+                        power = np.log10(absolute_val)
+                        if powerlist[count] == 0:
+                            powerlist[count] = (np.round(power,0))
+                        else:
+                            if abs(power) < abs(powerlist[count]):
+                                powerlist[count] = (np.round(power,0))
+            y_list.append(templist)   
+        index = -1
+        #print(powerlist[0],powerlist)
+        for ion in ionlist:
+            index = index + 1
+            reactioncount = -1
+            rnum = -2
+            for i in range(2):
+                for j in range(3):
+                    reactioncount = reactioncount + 1
+                    rnum = rnum + 2
+                    y = y_list[index][reactioncount]
+                    y = np.array(y)
+                    y = y/(10**powerlist[reactioncount])
+                    x = self.y_m[1:len(self.y_m)-1:steps]
+                    ax[i,j].plot(np.log10(x),(y), label=f'{ion}', alpha=0.85)
+                    #ax[i,j].set_title(f'{reactiondict[rnum]}')
+                    #ax[i,j].set_xscale('log')
+                    ax[i,j].text(0.20, 0.5, f'{reactiondict[rnum]}',
+     horizontalalignment='center',
+     verticalalignment='center',
+     transform = ax[i,j].transAxes, color = 'black', backgroundcolor='white', fontsize='small')
+                    ax[i,j].set_ylabel(f'Flow  ($10{get_super(str(powerlist[reactioncount]))}$ mol?)', fontsize='small')
+                    #ax[i,j].legend(loc ="lower left");
+        #fig.suptitle(f'Graphs of {ion} flows vs column depth')
+        ax[0,0].legend(loc='upper left',
+            borderaxespad=0, frameon=False, fontsize = 'x-small', ncol=1)
+        ax[1,0].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,1].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,2].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        #fig.supxlabel(f'Column depth, $(g/cm^2)$')
+        #fig.supylabel(f'Flow $(mol/g/s)$')
+        fig.tight_layout()
+        fig.show()
+        savestatus = input("save?(y/n): ")
+        if savestatus=='y':
+            title=input('title?: ')
+            fig.savefig(f'Results/all_reactions/{title}.pdf')
+        #fig.show()
