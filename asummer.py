@@ -428,7 +428,7 @@ class SummerShot(Shot):
                             powerlist[count] = (np.round(power,0))
                         else:
                             if abs(power) < abs(powerlist[count]):
-                                powerlist[count] = (np.round(power,0))
+                                powerlist[count] = (np.floor(power))
             y_list.append(templist)   
         index = -1
         #print(powerlist[0],powerlist)
@@ -466,7 +466,7 @@ class SummerShot(Shot):
         savestatus = input("save?(y/n): ")
         if savestatus=='y':
             title=input('title?: ')
-            fig.savefig(f'Results/all_reactions/{title}.pdf')
+            fig.savefig(f'Results/all_reactions/{title}.pdf', dpi=400)
         #fig.show()
     def printmaxvals(self, zone, reaction):
         reactionnumber = reactiondict[str(reaction)]
@@ -588,7 +588,7 @@ class SummerShot(Shot):
                 kwargs['cm'] = color.ColorBlendBspline(
                     ('white',)+tuple(
                         [color.ColorScale(
-                            color.colormap('plasma_r'),
+                            color.colormap('copper_r'),
                             lambda x: (x-0.2)/0.8)]*2)
                     + ('black',), frac=(0,.2,1),k=1)
             self.nuc =  NucPlot(abu, ax=ax, fig=fig, **kwargs)
@@ -604,7 +604,7 @@ class SummerShot(Shot):
                 reactionnumber = 2*i
                 rflowpos, rflowneg, ionpos, ionneg, ionlist, rflow = rflowposneg(self, j, reactionnumber)
                 all_rflows.append(rflow)
-            widths = scale_list_of_lists(all_rflows,0.5,2)
+            widths = scale_list_of_lists(all_rflows,0.5,4)
             opac = scale_list_of_lists(all_rflows,0.15,0.999)
             for i in range(6):
                 reactionnumber = 2*i
@@ -643,7 +643,7 @@ class SummerShot(Shot):
             filename = 'flows.webm',
             mp = True,
             values = None,
-            size = (1280, 960),
+            size = (1600, 1200),
             framerate = 30,
             **kwargs):
         if values is None:
@@ -724,3 +724,65 @@ class SummerShot(Shot):
             title=input('title?: ')
             fig.savefig(f'Results/all_reactions/{title}.pdf')
         #fig.show()
+    def compareions(selflist, ionlist, steps):
+        fig,ax=plt.subplots(2,3, figsize=(9,6))
+        powerlist = np.zeros(6)
+        all_y_list = []
+        for item in selflist:
+            self = Shot.load(f'Results/runs/{item}')
+            y_list = []
+            for ion in ionlist:
+                templist = []
+                all_y = allreactions(self, ion, steps)
+                rnum = -2
+                for count in range(6):
+                    rnum = rnum + 2
+                    y = all_y[rnum]
+                    templist.append(y)
+                    y = [x for x in y if x != 0] 
+                    if len(y)>0:
+                        absolute_val = np.abs(y).max()
+                        if absolute_val != 0:
+                            power = np.log10(absolute_val)
+                            if powerlist[count] == 0:
+                                powerlist[count] = (np.round(power,0))
+                            else:
+                                if abs(power) < abs(powerlist[count]):
+                                    powerlist[count] = (np.floor(power))
+                y_list.append(templist)
+            all_y_list.append(y_list)   
+        #print(powerlist[0],powerlist)
+        for sim in range(len(selflist)):
+            index = -1
+            self = Shot.load(f'Results/runs/{selflist[sim]}')
+            for ion in ionlist:
+                index = index + 1
+                reactioncount = -1
+                rnum = -2
+                for i in range(2):
+                    for j in range(3):
+                        reactioncount = reactioncount + 1
+                        rnum = rnum + 2
+                        y = all_y_list[sim][index][reactioncount]
+                        y = np.array(y)
+                        y = y/(10**powerlist[reactioncount])
+                        x = self.y_m[1:len(self.y_m)-1:steps]
+                        ax[i,j].plot(np.log10(x),(y), label=f'{ion}, {selflist[sim]}', alpha=0.85)
+                        ax[i,j].text(0.20, 0.5, f'{reactiondict[rnum]}',
+     horizontalalignment='center',
+     verticalalignment='center',
+     transform = ax[i,j].transAxes, color = 'black', backgroundcolor='white', fontsize='small')
+                        ax[i,j].set_ylabel(f'Flow  ($10{get_super(str(powerlist[reactioncount]))}$ mol g{get_super(str(-1))} s{get_super(str(-1))})', fontsize='small')
+        ax[0,0].legend(loc='upper left',
+            borderaxespad=0, frameon=False, fontsize = 'x-small', ncol=1)
+        ax[1,0].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,1].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        ax[1,2].set_xlabel(f'Log column depth (g cm{get_super(str(-2))})', fontsize='small')
+        #fig.supxlabel(f'Column depth, $(g/cm^2)$')
+        #fig.supylabel(f'Flow $(mol/g/s)$')
+        fig.tight_layout()
+        fig.show()
+        savestatus = input("save?(y/n): ")
+        if savestatus=='y':
+            title=input('title?: ')
+            fig.savefig(f'Results/all_reactions/{title}.pdf', dpi=400)
