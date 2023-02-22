@@ -76,7 +76,7 @@ def ionlist(name, zone):
 def findelement(name, element, zone):
         listname = ionlist(name, zone)
         for i in range(len(listname)):
-            if str(listname[i]==element) == 'True':
+            if listname[i] == element:
                 return i
         else:
             #print(f"{element} is not in list, set -1")
@@ -88,9 +88,7 @@ def allzones(name, ion):
     for i in range(1,int(name.flowb.shape[0])-1):
         ionnumber = findelement(name, ion, i)
         if ionnumber == -1:
-            flows.append(np.array([ 0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,
-         0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,  0.0e+000,
-         0.0e+000,  0.0e+000, 0.0e+000]))
+            flows.append(np.zeros(15))
             #print("neg 1")
         else:
             #print(ionnumber)
